@@ -104,7 +104,7 @@ class Trader:
         if not ma_values:
             return []
         
-        # Calculate signal strength based on deviation from moving averages
+        # Calculate signal strength based on deviation from moving averagess
         signal = 0
         for ma_key, ma_value in ma_values.items():
             deviation = (mid_price - ma_value) / ma_value
