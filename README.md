@@ -42,4 +42,4 @@ The Round 2 algorithm achieved a $45k profit, which was further adapted and impr
 MIT
 
 ---
-*Created by Joseph Garni for the IMC Prosperity 3 Trading Competition*
+*Created by Joseph Garni and Arslan Batyrov for the IMC Prosperity 3 Trading Competition*
