@@ -17,7 +17,13 @@ class Trader:
             'PICNIC_BASKET2': 100,
             'RAINFOREST_RESIN': 50,
             'KELP': 50,
-            'SQUID_INK': 50
+            'SQUID_INK': 50,
+            'VOLCANIC_ROCK': 400,
+            'VOLCANIC_ROCK_VOUCHER_9500': 200,
+            'VOLCANIC_ROCK_VOUCHER_9750': 200,
+            'VOLCANIC_ROCK_VOUCHER_10000': 200,
+            'VOLCANIC_ROCK_VOUCHER_10250': 200,
+            'VOLCANIC_ROCK_VOUCHER_10500': 200
         }
         
         # State variables for LSTM-like memory
