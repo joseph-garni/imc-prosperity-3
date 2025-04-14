@@ -253,7 +253,7 @@ class Trader:
         # Always return 0 conversions since we're not converting products
         conversions = 0
         
-        # Save state data
+        # Save state data.
         traderData = state.traderData
         
         return result, conversions, traderData
