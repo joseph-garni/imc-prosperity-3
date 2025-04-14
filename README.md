@@ -1,6 +1,6 @@
 # IMC Prosperity 3 Trading Competition
 
-This repository contains my solutions and trading algorithms for the IMC Prosperity 3 Trading Competition.
+This repository contains solutions and trading algorithms for the IMC Prosperity 3 Trading Competition.
 
 ## Repository Structure
 
