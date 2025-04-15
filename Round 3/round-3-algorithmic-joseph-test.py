@@ -43,8 +43,8 @@ class Trader:
         self.price_history[product]['price'].append(mid_price)
         self.price_history[product]['timestamp'].append(timestamp)
         
-        # Keep only the last 200 prices (memory management)
-        if len(self.price_history[product]['price']) > 200:
+        # Keep only the last 1000 prices (memory management)
+        if len(self.price_history[product]['price']) > 1000: 
             self.price_history[product]['price'].pop(0)
             self.price_history[product]['timestamp'].pop(0)
     
