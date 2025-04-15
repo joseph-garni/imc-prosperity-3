@@ -34,7 +34,6 @@ class Trader:
         }
         self.initialized = False
     
-    # appends price_history to dictionary for each product using price and timestamp, then sets price_history of produce using the best mid_price at each time interval over the last 200 data points.
     def update_price_history(self, product, mid_price, timestamp):
         """Update price history with new mid price"""
         if product not in self.price_history:
@@ -48,7 +47,6 @@ class Trader:
             self.price_history[product]['price'].pop(0)
             self.price_history[product]['timestamp'].pop(0)
     
-    # calculate moving average for each product if there are more than 5 price points to calculate ma from
     def calculate_moving_averages(self, product):
         """Calculate moving averages for a product"""
         if product not in self.price_history or len(self.price_history[product]['price']) < 5:
@@ -58,19 +56,12 @@ class Trader:
         windows = self.ma_windows.get(product, self.ma_windows['default'])
         
         ma_values = {}
-        for window in windows: #for default [5, 10, 20] it will run 5, 10, 20 as window
-            if len(prices) >= window: # if len of prices in price history for product is greater than or equal to 
+        for window in windows:
+            if len(prices) >= window:
                 ma_values[f'ma_{window}'] = sum(prices[-window:]) / window
-                #if we have 200 price values for JAMS
-                # len(prices) = 200
-                # for 5, 10, 20
-                #if 200 >= 5:
-                #    setting ma_values[f'ma_5'] = sum['prices[last 5 items in price history:]'] / window (5)
-                #if len(prices)
         
-        return ma_values # returns dictionary of moving averages 
+        return ma_values
     
-    # mid price checks if there are both buy orders and sell orders on the orderbook, then calculates mid price from the best values (max value on buy orders -> top value in list, and min value on sell orders -> lowest value in sell list)
     def calculate_mid_price(self, order_depth):
         """Calculate mid price from order depth"""
         if not order_depth.buy_orders or not order_depth.sell_orders:
@@ -80,18 +71,13 @@ class Trader:
         best_ask = min(order_depth.sell_orders.keys())
         return (best_bid + best_ask) / 2
     
-    # current position either returns 0 or our algorithms currently traded position in product
     def get_current_position(self, state, product):
         """Get current position for a product"""
         if product in state.position:
             return state.position[product]
         return 0
-
-    # position in the form:
-    # position = {"PRODUCT1": 3} or {"PRODUCT1": -10}
     
     def calculate_basket_values(self, mid_prices):
-        # checks if there are values for mid_price for each value in each basket, 'CROISSANTS', 'JAMS', 'DJEMBES', if they are not values for all of them, return empty dictionary
         """Calculate theoretical values for picnic baskets"""
         if not all(p in mid_prices for p in ['CROISSANTS', 'JAMS', 'DJEMBES']):  # Baiscally we check whether we have all value required in mid_prices by looping through. 
             return {}   # If not, we retyrn ther empty dictionary to rpevent further calculations
@@ -134,9 +120,8 @@ class Trader:
                 # Negative correlation means price tends to revert to mean
                 signal -= deviation * 3  # Stronger mean reversion factor
             else:
-                #here products, use standard trend following
+                # For other products, use standard trend following
                 signal += deviation
-                # For ot
         
         # Normalize signal
         signal = signal / len(ma_values)
@@ -144,14 +129,11 @@ class Trader:
         # Determine position target based on signal
         max_position = self.position_limits[product]
         position_target = int(signal * max_position)
-
-        #max position is the position limits for the product
-        # for position target we either use position target or max position
+        
         # Limit position target to position limits
         position_target = max(-max_position, min(max_position, position_target))    # In this case, -max_position caps the downside, while min caps the upsde
         
         # Calculate quantity needed to reach target
-        # quantity needed is signal value multiplied by max position (i.e 200) i.e 200*0.1  minus current positions in quantity
         quantity_needed = position_target - current_position
         
         # If no action needed
@@ -160,16 +142,16 @@ class Trader:
         
         # Place orders to reach the target position
         if quantity_needed > 0:  # Need to buy
-            for price, volume in sorted(order_depth.sell_orders.items()): # sorted list of price and volume, with sell orders in lowest to highest so we send buy orders to match with the lowest possible sell orders on the order book
+            for price, volume in sorted(order_depth.sell_orders.items()):
                 # Don't exceed quantity needed
                 executable_volume = min(abs(quantity_needed), abs(volume))
                 if executable_volume > 0:
                     orders.append(Order(product, price, executable_volume))
-                    quantity_needed -= executable_volume # subtract executable volume from quantity needed
+                    quantity_needed -= executable_volume
                     if quantity_needed <= 0:
                         break
-        else:  # Need to sell # if quantity needed is negative these are sell orders
-            for price, volume in sorted(order_depth.buy_orders.items(), reverse=True): # sorted list of price and volume, with buy order items set highest to lowest -> as we are selling to highest bidder
+        else:  # Need to sell
+            for price, volume in sorted(order_depth.buy_orders.items(), reverse=True):
                 # Don't exceed quantity needed
                 executable_volume = min(abs(quantity_needed), abs(volume))
                 if executable_volume > 0:
