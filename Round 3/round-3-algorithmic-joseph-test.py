@@ -30,7 +30,10 @@ class Trader:
         self.price_history = {}
         self.ma_windows = {
             'SQUID_INK': [10, 20, 50],  # Different windows for mean reversion on SQUID_INK
-            'default': [5, 10, 20]       # Default moving average windows for other products
+            'default': [5, 10, 20]     # Default moving average windows for other products
+        }
+        self.iv_window = {
+            'default': [1000]       #implied volatility window
         }
         self.initialized = False
     
@@ -114,7 +117,10 @@ class Trader:
             'PICNIC_BASKET2': basket2_value
         }
 
-    # implementing black-scholar
+    # implementing black-scholes 
+    def implied_volatility(self, ):
+
+    def black_scholes(self, )
     
     def trade_based_on_moving_average(self, product, order_depth, state, mid_price):
         """Implement trading logic based on moving averages"""
@@ -198,7 +204,7 @@ class Trader:
         
         # Determine if basket is overpriced or underpriced
         # Use threshold to account for transaction costs
-        threshold = 5
+        threshold = 5 
         
         # If the basket is significantly overpriced, sell it
         if price_diff > threshold and current_position > -max_position:
