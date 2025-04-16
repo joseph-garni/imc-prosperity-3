@@ -113,6 +113,8 @@ class Trader:
             'PICNIC_BASKET1': basket1_value,
             'PICNIC_BASKET2': basket2_value
         }
+
+    # implementing black-scholar
     
     def trade_based_on_moving_average(self, product, order_depth, state, mid_price):
         """Implement trading logic based on moving averages"""
@@ -136,7 +138,6 @@ class Trader:
             else:
                 #here products, use standard trend following
                 signal += deviation
-                # For ot
         
         # Normalize signal
         signal = signal / len(ma_values)
@@ -197,7 +198,7 @@ class Trader:
         
         # Determine if basket is overpriced or underpriced
         # Use threshold to account for transaction costs
-        threshold = 10
+        threshold = 5
         
         # If the basket is significantly overpriced, sell it
         if price_diff > threshold and current_position > -max_position:
