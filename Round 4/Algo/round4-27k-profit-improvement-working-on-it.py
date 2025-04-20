@@ -1,8 +1,4 @@
 
-    """
-Replace these methods in your existing Trader class to implement 
-the improved volcanic rock trading strategy with better risk management.
-"""
 
 def __init__(self):
     # Initialize position limits for all products
@@ -431,6 +427,182 @@ def trade_volcanic_rock(self, product, order_depth, state, mid_price):
     return orders
 
 def run(self, state: TradingState):
+    # Initialize result dictionary to store orders for each product
+    result = {}
+    
+    # Parse trader data if available
+    if state.traderData:
+        try:
+            trader_data = jsonpickle.decode(state.traderData)
+            if isinstance(trader_data, dict) and "round" in trader_data:
+                self.current_round = trader_data["round"]
+                
+            # Load additional state data if available
+            if isinstance(trader_data, dict) and "volcanic_rock_recent_pnl" in trader_data:
+                self.volcanic_rock_recent_pnl = trader_data["volcanic_rock_recent_pnl"]
+            if isinstance(trader_data, dict) and "max_consecutive_losses" in trader_data:
+                self.max_consecutive_losses = trader_data["max_consecutive_losses"]
+            if isinstance(trader_data, dict) and "last_volcanic_position" in trader_data:
+                self.last_volcanic_position = trader_data["last_volcanic_position"]
+        except:
+            self.current_round = 1
+    
+    # Update round counter if new day detected
+    if hasattr(self, 'last_timestamp') and state.timestamp - self.last_timestamp > 5000:
+        self.current_round += 1
+    self.last_timestamp = state.timestamp
+    
+    # Dictionary to store all mid prices
+    mid_prices = {}
+    
+    # Variable to track conversions for MAGNIFICENT_MACARONS
+    conversions = 0
+    
+    # First pass: Calculate mid prices and update price history
+    for product in state.order_depths:
+        order_depth = state.order_depths[product]
+        mid_price = self.calculate_mid_price(order_depth)
+        
+        # Record current position for historical analysis
+        current_position = self.get_current_position(state, product)
+        if product not in self.position_history:
+            self.position_history[product] = []
+        self.position_history[product].append(current_position)
+        if len(self.position_history[product]) > self.max_history_size:
+            self.position_history[product].pop(0)
+        
+        # Track position changes for volcanic rock
+        if product == 'VOLCANIC_ROCK':
+            new_position = current_position
+            if hasattr(self, 'last_volcanic_position'):
+                position_change = new_position - self.last_volcanic_position
+                self.volcanic_position_change = position_change
+            self.last_volcanic_position = new_position
+        
+        if mid_price:
+            mid_prices[product] = mid_price
+            self.update_price_history(product, mid_price, state.timestamp)
+    
+    # Calculate theoretical basket values
+    basket_values = self.calculate_basket_values(mid_prices)
+    
+    # Calculate theoretical voucher prices if VOLCANIC_ROCK price exists
+    theoretical_voucher_prices = {}
+    if 'VOLCANIC_ROCK' in mid_prices:
+        volcanic_rock_price = mid_prices['VOLCANIC_ROCK']
+        theoretical_voucher_prices = self.calculate_theoretical_voucher_prices(volcanic_rock_price)
+        
+        # Update implied volatilities based on market prices
+        voucher_mid_prices = {product: price for product, price in mid_prices.items() 
+                             if product.startswith('VOLCANIC_ROCK_VOUCHER')}
+        self.update_implied_vols(volcanic_rock_price, voucher_mid_prices, state.timestamp)
+    
+    # Get MAGNIFICENT_MACARONS observation if available
+    macaron_sunlight = 0
+    macaron_sugar_price = 0
+    if hasattr(state, 'observations') and state.observations is not None:
+        if hasattr(state.observations, 'MAGNIFICENT_MACARONS') and state.observations.MAGNIFICENT_MACARONS is not None:
+            macaron_obs = state.observations.MAGNIFICENT_MACARONS
+            if hasattr(macaron_obs, 'sunlightIndex'):
+                macaron_sunlight = macaron_obs.sunlightIndex
+            if hasattr(macaron_obs, 'sugarPrice'):
+                macaron_sugar_price = macaron_obs.sugarPrice
+    
+    # Get previous profit/loss information if available
+    previous_pnl = {}
+    if hasattr(state, 'previous_state') and state.previous_state is not None:
+        if hasattr(state.previous_state, 'profit_and_loss'):
+            previous_pnl = state.previous_state.profit_and_loss
+    
+    # Check for volcanic rock PnL and update records
+    if 'VOLCANIC_ROCK' in previous_pnl:
+        rock_pnl = previous_pnl['VOLCANIC_ROCK']
+        
+        # Update PnL history
+        self.volcanic_rock_pnl_history.append(rock_pnl)
+        if len(self.volcanic_rock_pnl_history) > self.max_history_size:
+            self.volcanic_rock_pnl_history.pop(0)
+        
+        # Update recent PnL for risk management
+        self.volcanic_rock_recent_pnl.append(rock_pnl)
+        if len(self.volcanic_rock_recent_pnl) > 10:  # Only keep last 10 entries
+            self.volcanic_rock_recent_pnl.pop(0)
+        
+        # Track consecutive losses
+        if rock_pnl < -1000:  # Significant loss
+            self.max_consecutive_losses += 1
+        else:
+            self.max_consecutive_losses = 0
+    
+    # Apply risk limits if consecutive losses exceed threshold
+    volcanic_risk_limit = 1.0
+    if hasattr(self, 'risk_factors') and 'VOLCANIC_ROCK' in self.risk_factors and self.max_consecutive_losses >= self.risk_factors['VOLCANIC_ROCK']['consecutive_loss_threshold']:
+        volcanic_risk_limit = self.risk_factors['VOLCANIC_ROCK']['post_loss_scaling']
+    
+    # Second pass: Execute trading strategies for each product
+    for product in state.order_depths:
+        order_depth = state.order_depths[product]
+        orders = []
+        
+        # Handle MAGNIFICENT_MACARONS specially
+        if product == 'MAGNIFICENT_MACARONS':
+            orders = self.trade_magnificent_macarons(order_depth, state, macaron_sunlight, macaron_sugar_price)
+            
+            # Check if we should convert macarons
+            current_position = self.get_current_position(state, product)
+            conversions = self.should_convert_macarons(state, current_position)
+        # Skip if no mid price is available
+        elif product not in mid_prices:
+            result[product] = []
+            continue
+        # Apply appropriate strategy based on product type
+        elif product in ['PICNIC_BASKET1', 'PICNIC_BASKET2']:
+            # Use basket arbitrage strategy
+            mid_price = mid_prices[product]
+            orders = self.trade_basket_arbitrage(product, order_depth, state, mid_price, basket_values)
+        elif product.startswith('VOLCANIC_ROCK_VOUCHER'):
+            # Use improved statistical options pricing strategy for volcanic rock vouchers
+            mid_price = mid_prices[product]
+            orders = self.trade_volcanic_rock_vouchers(product, order_depth, state, mid_price, theoretical_voucher_prices)
+        elif product == 'VOLCANIC_ROCK':
+            # Use improved statistical delta hedging strategy for volcanic rock
+            # Apply risk limits for volcanic rock after consecutive losses
+            if volcanic_risk_limit < 1.0:
+                # Modify order depth to limit trade sizes during high risk periods
+                limited_order_depth = OrderDepth()
+                
+                # Copy the order book but limit volumes
+                if order_depth.buy_orders:
+                    limited_order_depth.buy_orders = {
+                        price: int(volume * volcanic_risk_limit) 
+                        for price, volume in order_depth.buy_orders.items()
+                    }
+                if order_depth.sell_orders:
+                    limited_order_depth.sell_orders = {
+                        price: int(volume * volcanic_risk_limit) 
+                        for price, volume in order_depth.sell_orders.items()
+                    }
+                
+                # Use the limited order depth during high risk periods
+                mid_price = mid_prices[product]
+                orders = self.trade_volcanic_rock(product, limited_order_depth, state, mid_price)
+            else:
+                # Use normal order depth in normal conditions
+                mid_price = mid_prices[product]
+                orders = self.trade_volcanic_rock(product, order_depth, state, mid_price)
+        elif product == 'SQUID_INK':
+            # Use mean reversion strategy for SQUID_INK
+            mid_price = mid_prices[product]
+            orders = self.trade_based_on_moving_average(product, order_depth, state, mid_price)
+        else:
+            # Use standard moving average strategy for other products
+            mid_price = mid_prices[product]
+            orders = self.trade_based_on_moving_average(product, order_depth, state, mid_price)
+        
+        result[product] = orders
+    
+    # Save state data with updated round and risk metrics
+    traderData = jsonpickle.encode({
     # Initialize result dictionary to store orders for each product
     result = {}
     
