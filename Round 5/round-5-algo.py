@@ -7,7 +7,7 @@ from datamodel import OrderDepth, UserId, TradingState, Order, Symbol
 from typing import List, Dict, Tuple
 
 class Trader:
-    def __init__(self, symbol: Symbol, price: int, quantity: int, counter_party: UserId = None) -> None:
+    def __init__(self, symbol=None, price=0, quantity=0, counter_party = None) -> None:
         self.symbol = symbol
         self.price: int = price
         self.quantity: int = quantity
