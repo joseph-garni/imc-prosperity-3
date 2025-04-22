@@ -3,7 +3,7 @@ import math
 import pandas as pd
 import statistics
 import jsonpickle
-from datamodel import OrderDepth, UserId, TradingState, Order
+from datamodel import OrderDepth, UserId, TradingState, Order, Symbol
 from typing import List, Dict, Tuple
 
 class Trader:
@@ -12,6 +12,8 @@ class Trader:
         self.price: int = price
         self.quantity: int = quantity
         self.counter_party = counter_party
+        self.counterparty_profiles = {}  # Store trading patterns per counterparty
+        self.own_id = "YourTraderId"  # Set this to your trader ID in the simulation
         
         # Initialize position limits for all products
         self.position_limits = {
@@ -86,7 +88,185 @@ class Trader:
         self.position_history = {}
         
         self.initialized = False
+
+    def load_counterparty_data(self):
+        """Load and process historical counterparty trading data"""
+        try:
+            with open('trades_round_5_day_2.csv', 'r') as file:
+                next(file)  # Skip header
+                for line in file:
+                    parts = line.strip().split(';')
+                    if len(parts) >= 7:
+                        timestamp = parts[0]
+                        buyer = parts[1]
+                        seller = parts[2]
+                        symbol = parts[3]
+                        price = float(parts[5])
+                        quantity = int(parts[6])
+                        
+                        # Process buyer data
+                        self._update_counterparty_profile(buyer, symbol, price, quantity, True)
+                        
+                        # Process seller data
+                        self._update_counterparty_profile(seller, symbol, price, quantity, False)
+            
+            # Calculate final statistics
+            for cp in self.counterparty_profiles:
+                for product in self.counterparty_profiles[cp]:
+                    profile = self.counterparty_profiles[cp][product]
+                    if profile['buy_count'] > 0:
+                        profile['avg_buy_price'] = profile['total_buy_price'] / profile['buy_count']
+                    if profile['sell_count'] > 0:
+                        profile['avg_sell_price'] = profile['total_sell_price'] / profile['sell_count']
+                        
+            print(f"Loaded data for {len(self.counterparty_profiles)} counterparties")
+        except Exception as e:
+            print(f"Error loading counterparty data: {e}")
+
+
+    def load_counterparty_data(self):
+        """Load and process historical counterparty trading data"""
+        try:
+            with open('trades_round_5_day_2.csv', 'r') as file:
+                next(file)  # Skip header
+                for line in file:
+                    parts = line.strip().split(';')
+                    if len(parts) >= 7:
+                        timestamp = parts[0]
+                        buyer = parts[1]
+                        seller = parts[2]
+                        symbol = parts[3]
+                        price = float(parts[5])
+                        quantity = int(parts[6])
+                        
+                        # Process buyer data
+                        self._update_counterparty_profile(buyer, symbol, price, quantity, True)
+                        
+                        # Process seller data
+                        self._update_counterparty_profile(seller, symbol, price, quantity, False)
+            
+            # Calculate final statistics
+            for cp in self.counterparty_profiles:
+                for product in self.counterparty_profiles[cp]:
+                    profile = self.counterparty_profiles[cp][product]
+                    if profile['buy_count'] > 0:
+                        profile['avg_buy_price'] = profile['total_buy_price'] / profile['buy_count']
+                    if profile['sell_count'] > 0:
+                        profile['avg_sell_price'] = profile['total_sell_price'] / profile['sell_count']
+                        
+            print(f"Loaded data for {len(self.counterparty_profiles)} counterparties")
+        except Exception as e:
+            print(f"Error loading counterparty data: {e}")
     
+    def _update_counterparty_profile(self, counterparty, product, price, quantity, is_buy):
+        """Update the profile for a specific counterparty"""
+        # Initialize counterparty if not seen before
+        if counterparty not in self.counterparty_profiles:
+            self.counterparty_profiles[counterparty] = {}
+        
+        # Initialize product for counterparty if not seen before
+        if product not in self.counterparty_profiles[counterparty]:
+            self.counterparty_profiles[counterparty][product] = {
+                'buy_count': 0,
+                'sell_count': 0,
+                'total_buy_price': 0,
+                'total_sell_price': 0,
+                'avg_buy_price': 0,
+                'avg_sell_price': 0,
+                'max_buy_price': 0,
+                'min_sell_price': float('inf'),
+                'buy_quantities': [],
+                'sell_quantities': []
+            }
+        
+        profile = self.counterparty_profiles[counterparty][product]
+        
+        # Update statistics based on whether this is a buy or sell
+        if is_buy:
+            profile['buy_count'] += 1
+            profile['total_buy_price'] += price
+            profile['max_buy_price'] = max(profile['max_buy_price'], price)
+            profile['buy_quantities'].append(quantity)
+        else:
+            profile['sell_count'] += 1
+            profile['total_sell_price'] += price
+            profile['min_sell_price'] = min(profile['min_sell_price'], price)
+            profile['sell_quantities'].append(quantity)
+    
+    def update_from_recent_trades(self, state):
+        """Update counterparty profiles based on recent trades"""
+        if not hasattr(state, 'own_trades') or not state.own_trades:
+            return
+        
+        for product, trades in state.own_trades.items():
+            for trade in trades:
+                if trade.counter_party:
+                    # For trades where we bought
+                    if trade.quantity > 0:
+                        self._update_counterparty_profile(
+                            trade.counter_party, 
+                            product, 
+                            trade.price, 
+                            abs(trade.quantity), 
+                            False  # They were selling
+                        )
+                    # For trades where we sold
+                    else:
+                        self._update_counterparty_profile(
+                            trade.counter_party, 
+                            product, 
+                            trade.price, 
+                            abs(trade.quantity), 
+                            True  # They were buying
+                        )
+
+    def adjust_orders_for_counterparties(self, product, proposed_orders, order_depth):
+        """Adjust proposed orders based on counterparty insights"""
+        adjusted_orders = []
+        
+        # Skip adjustment if we don't have order book data
+        if not order_depth or not (order_depth.buy_orders or order_depth.sell_orders):
+            return proposed_orders
+        
+        # Find active counterparties for this product
+        active_counterparties = [cp for cp in self.counterparty_profiles 
+                                if product in self.counterparty_profiles[cp] and 
+                                (self.counterparty_profiles[cp][product]['buy_count'] > 0 or 
+                                self.counterparty_profiles[cp][product]['sell_count'] > 0)]
+        
+        # If no active counterparties, return original orders
+        if not active_counterparties:
+            return proposed_orders
+        
+        # Process buy orders
+        buy_orders = [order for order in proposed_orders if order.quantity > 0]
+        for order in buy_orders:
+            # Find counterparties willing to sell at this price or lower
+            willing_sellers = [cp for cp in active_counterparties 
+                            if product in self.counterparty_profiles[cp] and 
+                            self.counterparty_profiles[cp][product]['sell_count'] > 0 and
+                            self.counterparty_profiles[cp][product]['min_sell_price'] <= order.price]
+            
+            # If we have willing sellers, keep the order
+            if willing_sellers:
+                adjusted_orders.append(order)
+        
+        # Process sell orders
+        sell_orders = [order for order in proposed_orders if order.quantity < 0]
+        for order in sell_orders:
+            # Find counterparties willing to buy at this price or higher
+            willing_buyers = [cp for cp in active_counterparties 
+                            if product in self.counterparty_profiles[cp] and 
+                            self.counterparty_profiles[cp][product]['buy_count'] > 0 and
+                            self.counterparty_profiles[cp][product]['max_buy_price'] >= order.price]
+            
+            # If we have willing buyers, keep the order
+            if willing_buyers:
+                adjusted_orders.append(order)
+        
+        return adjusted_orders
+
+            
     def update_price_history(self, product, mid_price, timestamp):
         if product not in self.price_history:
             self.price_history[product] = {'price': [], 'timestamp': []}    
@@ -810,6 +990,12 @@ class Trader:
     def run(self, state: TradingState):
         # Initialize result dictionary to store orders for each product
         result = {}
+
+        if not hasattr(self, 'data_loaded') or not self.data_loaded:
+            self.load_counterparty_data()
+            self.data_loaded = True
+        
+        self.update_from_recent_trades(state)
         
         # Parse trader data if available
         if state.traderData:
@@ -911,7 +1097,9 @@ class Trader:
                 mid_price = mid_prices[product]
                 orders = self.trade_based_on_moving_average(product, order_depth, state, mid_price)
             
-            result[product] = orders
+            
+            adjusted_orders = self.adjust_orders_for_counterparties(product, orders, order_depth)
+            result[product] = adjusted_orders
         
         # Save state data with updated round
         traderData = jsonpickle.encode({"round": self.current_round})
