@@ -7,7 +7,14 @@ from datamodel import OrderDepth, UserId, TradingState, Order
 from typing import List, Dict, Tuple
 
 class Trader:
-    def __init__(self):
+    def __init__(self, symbol: Symbol, price: int, quantity: int, counter_party: UserId = None) -> None:
+
+        # Initialize values for limit, price, quantity, and counter party
+        self.symbol = symbol
+        self.price: int = price
+        self.quantity: int = quantity
+        self.counter_party = counter_party
+
         # Initialize position limits for all products
         self.position_limits = {
             'CROISSANTS': 250, 'JAMS': 350, 'DJEMBES': 60,
